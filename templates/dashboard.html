@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>E-Tongue Live Dashboard</title>
+
+  <!-- Local Socket.IO script served directly from static folder to eliminate CDN / version errors -->
+  <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+  <script>
+    if (typeof io === 'undefined') {
+      document.write('<script src="/static/js/socket.io.min.js"><\/script>');
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Work+Sans:wght@300..700&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-50: #f0fdf4;
+      --green-100: #dcfce7;
+      --green-200: #bbf7d0;
+      --green-300: #86efac;
+      --green-400: #4ade80;
+      --green-500: #22c55e;
+      --green-600: #16a34a;
+      --green-700: #15803d;
+      --green-800: #166534;
+      --green-900: #14532d;
+
+      --white: #ffffff;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+
+      --font-display: 'Instrument Serif', Georgia, serif;
+      --font-body: 'Work Sans', 'Helvetica Neue', sans-serif;
+
+      --radius-sm: 0.5rem;
+      --radius-md: 0.75rem;
+      --radius-lg: 1.25rem;
+      --radius-xl: 1.75rem;
+      --radius-pill: 999px;
+
+      --shadow-card: 0 4px 24px rgba(22,163,74,0.08), 0 1px 4px rgba(0,0,0,0.06);
+      --shadow-hover: 0 16px 48px rgba(22,163,74,0.18), 0 4px 12px rgba(0,0,0,0.08);
+      --shadow-soft: 0 4px 18px rgba(22,163,74,0.12);
+
+      --transition: 220ms cubic-bezier(0.16,1,0.3,1);
+
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --success-bg: #f0fdf4;
+      --warning-bg: #fffbeb;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background:
+        radial-gradient(ellipse 80% 40% at 50% -5%, rgba(187,247,208,0.35) 0%, transparent 60%),
+        var(--gray-50);
+      color: var(--gray-800);
+      font-size: clamp(0.875rem, 0.82rem + 0.25vw, 1rem);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      padding: 0.9rem 2rem;
+      background: rgba(255,255,255,0.84);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(22,163,74,0.1);
+      box-shadow: 0 2px 16px rgba(22,163,74,0.06);
+    }
+
+    .nav-left,
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      flex-wrap: wrap;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      color: var(--green-800);
+      text-decoration: none;
+    }
+
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--gray-500);
+      transition: color var(--transition);
+    }
+
+    .nav-back:hover { color: var(--green-700); }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.42rem 1rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid rgba(220,38,38,0.15);
+      transition: all var(--transition);
+    }
+
+    .status-pill.connected {
+      background: var(--success-bg);
+      color: var(--green-700);
+      border-color: rgba(22,163,74,0.22);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+
+    .status-pill.connected .status-dot {
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(1.45); }
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      font-weight: 700;
+      border-radius: var(--radius-pill);
+      padding: 0.58rem 1.2rem;
+      transition: all var(--transition);
+    }
+
+    .btn-primary {
+      background: var(--green-600);
+      color: white;
+      box-shadow: 0 4px 18px rgba(22,163,74,0.28);
+    }
+
+    .btn-primary:hover {
+      background: var(--green-700);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 26px rgba(22,163,74,0.36);
+    }
+
+    .btn-soft {
+      background: var(--gray-100);
+      color: var(--gray-700);
+      border: 1px solid var(--gray-200);
+    }
+
+    .btn-soft:hover {
+      background: var(--gray-200);
+      transform: translateY(-1px);
+    }
+
+    .btn-danger {
+      background: #fee2e2;
+      color: var(--danger);
+      border: 1px solid rgba(220,38,38,0.16);
+    }
+
+    .btn-danger:hover {
+      background: #fecaca;
+      transform: translateY(-1px);
+    }
+
+    .btn-full {
+      width: 100%;
+      border-radius: var(--radius-md);
+      padding: 0.78rem 1rem;
+    }
+
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 1.75rem 1.5rem 3rem;
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .page-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.7rem, 1.3rem + 1vw, 2.25rem);
+      color: var(--gray-900);
+      line-height: 1.1;
+    }
+
+    .page-sub {
+      margin-top: 0.2rem;
+      font-size: 0.9rem;
+      color: var(--gray-500);
+      max-width: 70ch;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .kpi-card,
+    .card {
+      background: var(--white);
+      border: 1px solid rgba(22,163,74,0.1);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+    }
+
+    .kpi-card {
+      position: relative;
+      padding: 1.25rem 1.4rem;
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--green-400), var(--green-600));
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .kpi-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--gray-400);
+      margin-bottom: 0.45rem;
+    }
+
+    .kpi-value {
+      font-size: clamp(1.8rem, 1.5rem + 0.8vw, 2.4rem);
+      font-weight: 800;
+      color: var(--green-800);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .kpi-sub {
+      margin-top: 0.35rem;
+      font-size: 0.76rem;
+      color: var(--gray-400);
+    }
+
+    .pred-card {
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      background: var(--white);
+      border: 1px solid rgba(22,163,74,0.1);
+      box-shadow: var(--shadow-card);
+    }
+
+    .pred-head {
+      padding: 1.75rem 2rem;
+      background: linear-gradient(135deg, var(--green-600), var(--green-400));
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      transition: background 0.35s ease;
+    }
+
+    .pred-head-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.82;
+      margin-bottom: 0.45rem;
+    }
+
+    .pred-name {
+      font-family: var(--font-display);
+      font-size: clamp(1.9rem, 1.5rem + 1.2vw, 2.8rem);
+      line-height: 1;
+    }
+
+    .pred-sub {
+      margin-top: 0.35rem;
+      font-size: 1rem;
+      opacity: 0.84;
+    }
+
+    .pred-conf {
+      text-align: center;
+    }
+
+    .pred-conf-val {
+      font-size: clamp(2rem, 1.6rem + 1.4vw, 3rem);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .pred-conf-lbl {
+      margin-top: 0.25rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.84;
+    }
+
+    .pred-info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--gray-100);
+    }
+
+    .pred-info-cell {
+      background: var(--white);
+      padding: 1rem 1.25rem;
+    }
+
+    .pred-info-key {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray-400);
+      margin-bottom: 0.3rem;
+    }
+
+    .pred-info-val {
+      font-size: 0.9rem;
+      color: var(--gray-800);
+      font-weight: 500;
+    }
+
+    .prob-wrap {
+      padding: 1.25rem 1.5rem 1.4rem;
+      border-top: 1px solid var(--gray-100);
+    }
+
+    .section-cap {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray-400);
+      margin-bottom: 0.85rem;
+    }
+
+    .prob-row {
+      display: grid;
+      grid-template-columns: 90px 1fr 56px;
+      gap: 0.75rem;
+      align-items: center;
+      margin-bottom: 0.65rem;
+    }
+
+    .prob-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--gray-700);
+    }
+
+    .prob-track {
+      height: 10px;
+      background: var(--gray-100);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .prob-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.55s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    .prob-val {
+      text-align: right;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--gray-600);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    .card-head {
+      padding: 1rem 1.4rem;
+      border-bottom: 1px solid var(--gray-100);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .card-title {
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray-400);
+    }
+
+    .card-body {
+      padding: 1.3rem 1.4rem 1.4rem;
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 0.95rem;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 0.36rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray-400);
+    }
+
+    .field input {
+      width: 100%;
+      padding: 0.72rem 0.9rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--gray-200);
+      background: var(--gray-50);
+      color: var(--gray-800);
+      font-family: var(--font-body);
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+    }
+
+    .field input:focus {
+      border-color: var(--green-500);
+      box-shadow: 0 0 0 3px rgba(34,197,94,0.14);
+      background: var(--white);
+    }
+
+    .history-list,
+    .log-list {
+      max-height: 320px;
+      overflow-y: auto;
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.9rem;
+      flex-wrap: wrap;
+      padding: 0.78rem 1rem;
+      background: var(--green-50);
+      border: 1px solid var(--green-100);
+      border-radius: var(--radius-md);
+    }
+
+    .history-pred {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--green-800);
+    }
+
+    .history-meta {
+      font-size: 0.78rem;
+      color: var(--gray-500);
+    }
+
+    .history-side {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.25rem;
+    }
+
+    .history-conf {
+      padding: 0.18rem 0.58rem;
+      border-radius: var(--radius-pill);
+      background: var(--green-100);
+      color: var(--green-700);
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .history-time {
+      font-size: 0.72rem;
+      color: var(--gray-400);
+    }
+
+    .log-item {
+      padding: 0.58rem 0.85rem;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      font-size: 0.79rem;
+      color: var(--gray-600);
+      font-family: "Courier New", monospace;
+      line-height: 1.45;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-pill);
+      background: var(--green-100);
+      color: var(--green-700);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      text-align: center;
+      color: var(--gray-400);
+      padding: 2.2rem 1rem;
+    }
+
+    .empty-state p {
+      font-size: 0.85rem;
+      max-width: 38ch;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--green-200);
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--green-400); }
+
+    @media (max-width: 980px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .two-col { grid-template-columns: 1fr; }
+      .pred-info-grid { grid-template-columns: repeat(2, 1fr); }
+      .input-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 700px) {
+      nav { padding: 0.9rem 1rem; }
+      .page { padding: 1.2rem 1rem 2rem; }
+      .pred-head { padding: 1.35rem 1.2rem; }
+      .card-body, .prob-wrap { padding-left: 1rem; padding-right: 1rem; }
+      .card-head { padding: 0.95rem 1rem; }
+    }
+
+    @media (max-width: 560px) {
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      .pred-info-grid { grid-template-columns: 1fr; }
+      .prob-row { grid-template-columns: 72px 1fr 48px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="nav-left">
+      <a class="nav-logo" href="/">
+        <svg width="28" height="28" viewBox="0 0 30 30" fill="none" aria-label="E-Tongue Logo">
+          <circle cx="15" cy="15" r="14" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+          <ellipse cx="15" cy="17" rx="6" ry="8" fill="#16a34a" opacity="0.15"/>
+          <path d="M15 6 Q18 10 18 15 Q18 20 15 24 Q12 20 12 15 Q12 10 15 6Z" fill="#16a34a"/>
+          <circle cx="15" cy="15" r="2" fill="white"/>
+          <path d="M9 13 Q11 11 13 13" stroke="#16a34a" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+          <path d="M17 13 Q19 11 21 13" stroke="#16a34a" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+        </svg>
+        E-Tongue Dravya
+      </a>
+
+      <a class="nav-back" href="/">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Back to Home
+      </a>
+    </div>
+
+    <div class="nav-right">
+      <div id="statusPill" class="status-pill">
+        <span class="status-dot"></span>
+        <span id="statusLabel">Disconnected</span>
+      </div>
+
+      <button class="btn btn-primary" onclick="startSerial()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Start
+      </button>
+
+      <button class="btn btn-soft" onclick="stopSerial()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <rect x="6" y="6" width="12" height="12"/>
+        </svg>
+        Stop
+      </button>
+
+      <button class="btn btn-danger" onclick="clearHistory()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14H6L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+        </svg>
+        Clear
+      </button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Live Detection Dashboard</h1>
+        <p class="page-sub" id="topbarMsg">Waiting for serial connection.</p>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">pH</div>
+        <div class="kpi-value" id="phValue">--</div>
+        <div class="kpi-sub">Latest acidity reading</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">TDS</div>
+        <div class="kpi-value" id="tdsValue">--</div>
+        <div class="kpi-sub">Total dissolved solids</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">EC</div>
+        <div class="kpi-value" id="ecValue">--</div>
+        <div class="kpi-sub">Electrical conductivity</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label">Readings</div>
+        <div class="kpi-value" id="readingCount">0</div>
+        <div class="kpi-sub">Saved history entries</div>
+      </div>
+    </div>
+
+    <div class="pred-card">
+      <div class="pred-head" id="predictionHead">
+        <div>
+          <div class="pred-head-label">Current Prediction</div>
+          <div class="pred-name" id="predName">Waiting for data</div>
+          <div class="pred-sub" id="predSub">No sample classified yet</div>
+        </div>
+
+        <div class="pred-conf">
+          <div class="pred-conf-val" id="predConf">--%</div>
+          <div class="pred-conf-lbl">Confidence</div>
+        </div>
+      </div>
+
+      <div class="pred-info-grid">
+        <div class="pred-info-cell">
+          <div class="pred-info-key">Taste</div>
+          <div class="pred-info-val" id="mTaste">--</div>
+        </div>
+        <div class="pred-info-cell">
+          <div class="pred-info-key">Property</div>
+          <div class="pred-info-val" id="mProperty">--</div>
+        </div>
+        <div class="pred-info-cell">
+          <div class="pred-info-key">Use</div>
+          <div class="pred-info-val" id="mUse">--</div>
+        </div>
+        <div class="pred-info-cell">
+          <div class="pred-info-key">Rasa</div>
+          <div class="pred-info-val" id="mRasa">--</div>
+        </div>
+        <div class="pred-info-cell">
+          <div class="pred-info-key">Guna</div>
+          <div class="pred-info-val" id="mGuna">--</div>
+        </div>
+        <div class="pred-info-cell">
+          <div class="pred-info-key">Time</div>
+          <div class="pred-info-val" id="mTime">--</div>
+        </div>
+      </div>
+
+      <div class="prob-wrap">
+        <div class="section-cap">Probability Distribution</div>
+        <div id="probabilityBox">
+          <div class="empty-state" style="padding: 1rem 0;">
+            <p>Run a prediction to see probability scores.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Manual Prediction</span>
+        </div>
+        <div class="card-body">
+          <div class="input-grid">
+            <div class="field">
+              <label for="manualPH">pH</label>
+              <input id="manualPH" type="number" step="0.01" placeholder="Enter pH">
+            </div>
+            <div class="field">
+              <label for="manualTDS">TDS</label>
+              <input id="manualTDS" type="number" step="0.01" placeholder="Enter TDS">
+            </div>
+            <div class="field">
+              <label for="manualEC">EC</label>
+              <input id="manualEC" type="number" step="0.01" placeholder="Enter EC">
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-full" onclick="manualPredict()">Run Prediction</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Reading History</span>
+          <span class="badge" id="historyCountBadge">0</span>
+        </div>
+        <div class="card-body" style="padding-top: 0.9rem;">
+          <div id="historyBox" class="history-list">
+            <div class="empty-state">
+              <p>No readings yet. Start serial or run manual prediction.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Serial Log</span>
+      </div>
+      <div class="card-body" style="padding-top: 0.9rem;">
+        <div id="logBox" class="log-list">
+          <div class="empty-state" style="padding: 1rem 0;">
+            <p>Serial output will appear here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = (typeof io !== "undefined") ? io({
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000
+    }) : null;
+
+    let historyCount = 0;
+    let firstHistory = true;
+    let firstLog = true;
+    let lastReadingTime = 0;
+    const READING_THROTTLE_MS = 1500;
+
+    const COLORS = {
+      Aloevera: "#22c55e",
+      Amla: "#84cc16",
+      Giloy: "#0ea5e9",
+      Karanda: "#ef4444",
+      Neem: "#0d9488",
+      Tulsi: "#7c3aed"
+    };
+
+    function getColor(cls) {
+      return COLORS[cls] || "#16a34a";
+    }
+
+    function addLog(msg) {
+      const box = document.getElementById("logBox");
+      if (!box) return;
+      if (firstLog) {
+        box.innerHTML = "";
+        firstLog = false;
+      }
+
+      const item = document.createElement("div");
+      item.className = "log-item";
+      const ts = new Date().toLocaleTimeString();
+      item.textContent = `[${ts}] ${msg}`;
+      box.prepend(item);
+
+      if (box.children.length > 80) {
+        box.removeChild(box.lastChild);
+      }
+    }
+
+    function setStatus(connected, message) {
+      const pill = document.getElementById("statusPill");
+      const label = document.getElementById("statusLabel");
+      const top = document.getElementById("topbarMsg");
+
+      if (pill) pill.className = connected ? "status-pill connected" : "status-pill";
+      if (label) label.textContent = connected ? "Connected" : "Disconnected";
+      if (top) top.textContent = message || (connected ? "Connected" : "Waiting for serial connection.");
+    }
+
+    function startSerial() {
+      addLog("Start button clicked");
+      if (socket && socket.connected) {
+        socket.emit("start_serial");
+      } else {
+        fetch("/api/start_serial", { method: "POST" })
+          .then(r => r.json())
+          .then(d => addLog(`Serial start (HTTP): ${d.status}`))
+          .catch(err => addLog(`Serial start error: ${err.message}`));
+      }
+    }
+
+    function stopSerial() {
+      addLog("Stop button clicked");
+      if (socket && socket.connected) {
+        socket.emit("stop_serial");
+      } else {
+        fetch("/api/stop_serial", { method: "POST" })
+          .then(r => r.json())
+          .then(d => addLog(`Serial stop (HTTP): ${d.status}`))
+          .catch(err => addLog(`Serial stop error: ${err.message}`));
+      }
+    }
+
+    function resetHistoryUI() {
+      const box = document.getElementById("historyBox");
+      if (box) {
+        box.innerHTML = `
+          <div class="empty-state">
+            <p>No readings yet. Start serial or run manual prediction.</p>
+          </div>
+        `;
+      }
+      historyCount = 0;
+      firstHistory = true;
+      lastReadingTime = 0;
+      const rc = document.getElementById("readingCount");
+      const hcb = document.getElementById("historyCountBadge");
+      if (rc) rc.textContent = "0";
+      if (hcb) hcb.textContent = "0";
+    }
+
+    function clearHistory() {
+      fetch("/api/clear_history", { method: "POST" })
+        .then(r => r.json())
+        .then(d => {
+          if (d.success) {
+            resetHistoryUI();
+            addLog("History cleared");
+          }
+        })
+        .catch(err => addLog("Clear history failed: " + err.message));
+    }
+
+    function manualPredict() {
+      const pH = parseFloat(document.getElementById("manualPH").value);
+      const TDS = parseFloat(document.getElementById("manualTDS").value);
+      const EC = parseFloat(document.getElementById("manualEC").value);
+
+      if (isNaN(pH) || isNaN(TDS) || isNaN(EC)) {
+        addLog("Please enter valid pH, TDS, and EC values.");
+        return;
+      }
+
+      addLog(`Sending prediction request: pH=${pH}, TDS=${TDS}, EC=${EC}...`);
+
+      if (socket && socket.connected) {
+        socket.emit("manual_predict", { pH, TDS, EC });
+      } else {
+        fetch("/api/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pH, TDS, EC })
+        })
+        .then(r => r.json())
+        .then(d => {
+          if (d.success && d.result) {
+            updateDisplay(d.result);
+            addHistory(d.result);
+            bumpCount();
+            addLog(`Prediction received: ${d.result.prediction} (${d.result.confidence}%)`);
+          } else {
+            addLog(`Prediction failed: ${d.error || "Unknown error"}`);
+          }
+        })
+        .catch(err => addLog(`Prediction API error: ${err.message}`));
+      }
+    }
+
+    function renderProbabilities(probabilities) {
+      const box = document.getElementById("probabilityBox");
+      if (!box) return;
+      box.innerHTML = "";
+
+      const keys = Object.keys(probabilities || {});
+      if (!keys.length) {
+        box.innerHTML = `
+          <div class="empty-state" style="padding: 1rem 0;">
+            <p>No probability data available.</p>
+          </div>
+        `;
+        return;
+      }
+
+      keys
+        .sort((a, b) => probabilities[b] - probabilities[a])
+        .forEach(cls => {
+          const value = probabilities[cls];
+          const row = document.createElement("div");
+          row.className = "prob-row";
+          row.innerHTML = `
+            <div class="prob-name">${cls}</div>
+            <div class="prob-track">
+              <div class="prob-fill" style="width:${value}%; background:linear-gradient(90deg, ${getColor(cls)}aa, ${getColor(cls)});"></div>
+            </div>
+            <div class="prob-val">${value}%</div>
+          `;
+          box.appendChild(row);
+        });
+    }
+
+    function addHistory(item) {
+      const box = document.getElementById("historyBox");
+      if (!box) return;
+
+      if (firstHistory) {
+        box.innerHTML = "";
+        firstHistory = false;
+      }
+
+      const div = document.createElement("div");
+      div.className = "history-item";
+      div.innerHTML = `
+        <div>
+          <div class="history-pred">${item.prediction}</div>
+          <div class="history-meta">pH ${item.pH} · TDS ${item.TDS} · EC ${item.EC}</div>
+        </div>
+        <div class="history-side">
+          <span class="history-conf">${item.confidence}%</span>
+          <span class="history-time">${item.timestamp}</span>
+        </div>
+      `;
+      box.prepend(div);
+
+      if (box.children.length > 50) {
+        box.removeChild(box.lastChild);
+      }
+    }
+
+    function setHistoryCount(count) {
+      historyCount = count;
+      const rc = document.getElementById("readingCount");
+      const hcb = document.getElementById("historyCountBadge");
+      if (rc) rc.textContent = String(count);
+      if (hcb) hcb.textContent = String(count);
+    }
+
+    function bumpCount() {
+      setHistoryCount(historyCount + 1);
+    }
+
+    function updateDisplay(data) {
+      const info = data.info || {};
+      const color = info.color || getColor(data.prediction) || "#16a34a";
+
+      const phEl = document.getElementById("phValue");
+      const tdsEl = document.getElementById("tdsValue");
+      const ecEl = document.getElementById("ecValue");
+      const nameEl = document.getElementById("predName");
+      const subEl = document.getElementById("predSub");
+      const confEl = document.getElementById("predConf");
+
+      if (phEl) phEl.textContent = data.pH ?? "--";
+      if (tdsEl) tdsEl.textContent = data.TDS ?? "--";
+      if (ecEl) ecEl.textContent = data.EC ?? "--";
+
+      if (nameEl) nameEl.textContent = data.prediction || "--";
+      if (subEl) subEl.textContent = info.sanskrit || "--";
+      if (confEl) confEl.textContent = `${data.confidence ?? "--"}%`;
+
+      const tasteEl = document.getElementById("mTaste");
+      const propEl = document.getElementById("mProperty");
+      const useEl = document.getElementById("mUse");
+      const rasaEl = document.getElementById("mRasa");
+      const gunaEl = document.getElementById("mGuna");
+      const timeEl = document.getElementById("mTime");
+
+      if (tasteEl) tasteEl.textContent = info.taste || "--";
+      if (propEl) propEl.textContent = info.property || "--";
+      if (useEl) useEl.textContent = info.use || "--";
+      if (rasaEl) rasaEl.textContent = info.rasa || "--";
+      if (gunaEl) gunaEl.textContent = info.guna || "--";
+      if (timeEl) timeEl.textContent = `${data.date || "--"} ${data.timestamp || "--"}`;
+
+      const headEl = document.getElementById("predictionHead");
+      if (headEl) {
+        headEl.style.background = `linear-gradient(135deg, ${color}, ${color}bb)`;
+      }
+
+      renderProbabilities(data.probabilities || {});
+    }
+
+    // Initial fetch on page load to restore state even before socket events
+    window.addEventListener("DOMContentLoaded", () => {
+      fetch("/api/status")
+        .then(r => r.json())
+        .then(d => {
+          if (d.model_loaded) {
+            addLog("Model loaded: " + (d.model_classes || []).join(", "));
+          } else {
+            addLog("Warning: Model not loaded on server");
+          }
+          setStatus(d.connected, d.connected ? `Connected to ${d.port}` : "Server ready (python-engineio)");
+        })
+        .catch(err => addLog("Status fetch error: " + err.message));
+
+      fetch("/api/history")
+        .then(r => r.json())
+        .then(d => {
+          if (d.history && d.history.length > 0) {
+            const box = document.getElementById("historyBox");
+            if (box) box.innerHTML = "";
+            firstHistory = false;
+            d.history.slice().reverse().forEach(item => addHistory(item));
+            setHistoryCount(d.history.length);
+            updateDisplay(d.history[0]);
+            addLog(`Restored ${d.history.length} saved readings`);
+          }
+        })
+        .catch(err => addLog("History fetch error: " + err.message));
+    });
+
+    if (socket) {
+      socket.on("connect", () => {
+        addLog("Socket connected: " + socket.id);
+      });
+
+      socket.on("connect_error", err => {
+        addLog("Socket connection error: " + err.message);
+      });
+
+      socket.on("disconnect", () => {
+        addLog("Socket disconnected");
+        setStatus(false, "Disconnected");
+      });
+
+      socket.on("connection_status", data => {
+        if (data.message !== "Receiving continuous data") {
+          addLog(`Status: ${data.message}`);
+        }
+        setStatus(data.connected, data.message);
+      });
+
+      socket.on("serial_control", data => {
+        addLog(`Serial control: ${data.status}`);
+      });
+
+      socket.on("new_reading", data => {
+        updateDisplay(data);
+
+        const now = Date.now();
+        if (now - lastReadingTime >= READING_THROTTLE_MS) {
+          lastReadingTime = now;
+          addHistory(data);
+          bumpCount();
+          addLog(`New reading: ${data.prediction} (${data.confidence}%)`);
+        }
+      });
+
+      socket.on("serial_log", data => {
+        if (data.line && data.line.trim()) {
+          addLog(`RAW: ${data.line}`);
+        }
+      });
+
+      socket.on("error", data => {
+        addLog(`Error: ${data.message}`);
+      });
+
+      socket.on("history_data", data => {
+        if (data.history && data.history.length) {
+          const box = document.getElementById("historyBox");
+          if (box) box.innerHTML = "";
+          firstHistory = false;
+
+          data.history.slice().reverse().forEach(item => addHistory(item));
+          setHistoryCount(data.history.length);
+          updateDisplay(data.history[0]);
+          addLog(`Restored ${data.history.length} history items`);
+        } else {
+          resetHistoryUI();
+        }
+      });
+
+      socket.on("history_cleared", () => {
+        resetHistoryUI();
+        addLog("History cleared by server");
+      });
+
+      socket.on("model_info", data => {
+        addLog(`Model loaded: ${data.loaded} | classes: ${(data.classes || []).join(", ")}`);
+      });
+    } else {
+      addLog("Warning: Socket.IO library not available in browser. Operating in HTTP mode.");
+    }
+  </script>
+</body>
+</html>
